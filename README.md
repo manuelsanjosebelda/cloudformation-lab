@@ -25,8 +25,8 @@ cloudformation-lab1/
 ├── static-website/
 │ ├── template.yaml
 │ └── website/
-│ ├── index.html
-│ └── style.css
+│     ├── index.html
+│     └── style.css
 ├── three-tier-architecture/
 └── README.md
 ```
