@@ -1,0 +1,81 @@
+/* General page styling */
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, Helvetica, sans-serif;
+    background-color: #f3f6fa;
+    color: #232f3e;
+    line-height: 1.6;
+}
+
+/* Main header */
+header {
+    background-color: #232f3e;
+    color: #ffffff;
+    text-align: center;
+    padding: 60px 20px;
+    border-bottom: 5px solid #ff9900;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 2.5rem;
+}
+
+header p {
+    margin-top: 10px;
+    font-size: 1.1rem;
+    color: #d5dbe3;
+}
+
+/* Main content */
+main {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 0 20px;
+}
+
+section {
+    background-color: #ffffff;
+    margin-bottom: 25px;
+    padding: 25px;
+    border-radius: 8px;
+    border: 1px solid #e1e6ed;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+}
+
+section h2 {
+    margin-top: 0;
+    color: #ff9900;
+}
+
+/* Footer */
+footer {
+    background-color: #232f3e;
+    color: #ffffff;
+    text-align: center;
+    padding: 20px;
+    margin-top: 50px;
+}
+
+footer p {
+    margin: 0;
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 600px) {
+    header h1 {
+        font-size: 1.8rem;
+    }
+
+    header {
+        padding: 40px 15px;
+    }
+
+    main {
+        margin: 25px auto;
+    }
+}
