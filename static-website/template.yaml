@@ -4,21 +4,28 @@ Description: >
   CloudFormation template for the ATU DevOps static website.
   Creates an S3 bucket configured for static website hosting.
 
-Parameters:
-  StudentName:
-    Type: String
-    Default: "Manuel Sanjose"
-    Description: Student name to identify the website owner.
+# They are commentted just in case
+#Parameters:
+#  StudentName:
+#    Type: String
+#    Default: "Manuel Sanjose"
+#    Description: Student name to identify the website owner.
 
-  StudentNumber:
-    Type: String
-    Default: "L00205501"
-    Description: ATU student .
+#  StudentNumber:
+#    Type: String
+#    Default: "L00205501"
+#    Description: ATU student .
 
 Resources:
   WebsiteBucket:
     Type: AWS::S3::Bucket
     Properties:
+      BucketName: atu-cloudformation-l00205501
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
       WebsiteConfiguration:
         IndexDocument: index.html
         ErrorDocument: index.html
@@ -27,7 +34,18 @@ Resources:
           Value: ATU-CloudFormation-Lab
         - Key: Purpose
           Value: StaticWebsite
-
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowPublicRead
+            Effect: Allow
+            Principal: "*"
+            Action: s3:GetObject
+            Resource: !Sub "${WebsiteBucket.Arn}/*"
 Outputs:
   WebsiteBucketName:
     Description: Name of the S3 bucket hosting the website.
