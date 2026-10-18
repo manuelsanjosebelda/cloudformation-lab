@@ -23,10 +23,10 @@ cloudformation-lab1/
 ├── src/
 ├── tests/
 ├── static-website/
-│ ├── template.yaml
-│ └── website/
-│     ├── index.html
-│     └── style.css
+│     ├── template.yaml
+│     └── website/
+│         ├── index.html
+│         └── style.css
 ├── three-tier-architecture/
 └── README.md
 ```
