@@ -6,6 +6,7 @@ Description: >
   Stage 2: Public routing.
   Stage 3: Security Groups.
   Stage 4: Application Load Balancer (ALB)
+  Stage 5: Application tier: EC2 instance
 
 Parameters:
   EnvironmentName:
@@ -205,6 +206,7 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-db-sg"
+
   # 4. LOAD BALANCER (ALB)
   # Routes incoming HTTP traffic to the application tier
   ApplicationTargetGroup:
@@ -217,6 +219,9 @@ Resources:
       TargetType: instance
       HealthCheckProtocol: HTTP
       HealthCheckPath: /
+      Targets:
+        - Id: !Ref ApplicationServer
+          Port: 80
       Matcher:
         HttpCode: "200-399"
       Tags:
@@ -251,6 +256,35 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ApplicationTargetGroup
 
+  # 5. APPLICATION TIER: EC2 instance
+  ApplicationServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
+      InstanceType: t3.micro
+      SubnetId: !Ref PublicSubnetA
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          dnf update -y
+          dnf install -y httpd
+          systemctl enable httpd
+          systemctl start httpd
+          cat > /var/www/html/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>ATU DevOps Lab</title></head>
+          <body>
+            <h1>ATU CloudFormation Lab - Manuel Sanjose — L00205501</h1>
+            <p>Application tier deployed successfully.</p>
+          </body>
+          </html>
+          EOF
+      SecurityGroupIds:
+        - !Ref ApplicationSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-application-server"
 # ===================================================================================
 # 7. OUTPUTS
 # ===================================================================================
