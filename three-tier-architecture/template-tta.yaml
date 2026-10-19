@@ -5,6 +5,7 @@ Description: >
   Stage 1: VPC and network subnets.
   Stage 2: Public routing.
   Stage 3: Security Groups.
+  Stage 4: Application Load Balancer (ALB)
 
 Parameters:
   EnvironmentName:
@@ -204,6 +205,52 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-db-sg"
+  # 4. LOAD BALANCER (ALB)
+  # Routes incoming HTTP traffic to the application tier
+  ApplicationTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${EnvironmentName}-app-targets"
+      VpcId: !Ref VPC
+      Protocol: HTTP
+      Port: 80
+      TargetType: instance
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      Matcher:
+        HttpCode: "200-399"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-app-target-group"
+
+  # 4. LOAD BALANCER: Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${EnvironmentName}-alb"
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-alb"
+
+  # 4. LOAD BALANCER: HTTP Listener
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApplicationTargetGroup
+
 # ===================================================================================
 # 7. OUTPUTS
 # ===================================================================================
@@ -232,3 +279,7 @@ Outputs:
   DatabaseSubnetBId:
     Description: ID of database subnet B.
     Value: !Ref DatabaseSubnetB
+
+  LoadBalancerDNS:
+    Description: DNS name of the public Application Load Balancer.
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
