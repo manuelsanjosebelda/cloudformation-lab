@@ -3,6 +3,7 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   Three-tier architecture for the ATU DevOps CloudFormation Lab.
   Stage 1: VPC and network subnets.
+  Stage 2: Public routing.
 
 Parameters:
   EnvironmentName:
@@ -103,8 +104,59 @@ Resources:
         - Key: Name
           Value: !Sub "${EnvironmentName}-database-subnet-b"
 
+  # ===================================================================================
+  # 5. PUBLIC NETWORKING
+  # ===================================================================================
+
+  # Internet gateway that provides internet connectivity to public subnets.
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-internet-gateway"
+
+  # Attaches the internet gateway to the VPC.
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Route table used by the public subnets.
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-public-route-table"
+
+  # Sends internet-bound traffic through the internet gateway.
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Associates public subnet A with the public route table.
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  # Associates public subnet B with the public route table.
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
 # ===================================================================================
-# 5. OUTPUTS
+# 6. OUTPUTS
 # ===================================================================================
 
 Outputs:
