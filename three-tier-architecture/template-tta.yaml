@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Three-tier architecture for the ATU DevOps CloudFormation Lab.
+  Stage 1: VPC and network subnets.
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name used to identify resources.
+
+Resources:
+  # ===================================================================================
+  # 1. NETWORKING: VIRTUAL PRIVATE CLOUD
+  # ===================================================================================
+
+  # Main private network for the three-tier architecture.
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-three-tier-vpc"
+
+  # ===================================================================================
+  # 2. PUBLIC SUBNETS
+  # ===================================================================================
+
+  # Public subnet A, intended for the load balancer.
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-public-subnet-a"
+
+  # Public subnet B, in a different Availability Zone.
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.5.0/24
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-public-subnet-b"
+
+  # ===================================================================================
+  # 3. APPLICATION SUBNET
+  # ===================================================================================
+
+  # Private subnet intended for the application server.
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-private-app-subnet-a"
+
+  # ===================================================================================
+  # 4. DATABASE SUBNETS
+  # ===================================================================================
+
+  # First private subnet for the database tier.
+  DatabaseSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-database-subnet-a"
+
+  # Second private database subnet in another Availability Zone.
+  DatabaseSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-database-subnet-b"
+
+# ===================================================================================
+# 5. OUTPUTS
+# ===================================================================================
+
+Outputs:
+  VPCId:
+    Description: ID of the virtual private cloud.
+    Value: !Ref VPC
+
+  PublicSubnetAId:
+    Description: ID of public subnet A.
+    Value: !Ref PublicSubnetA
+
+  PublicSubnetBId:
+    Description: ID of public subnet B.
+    Value: !Ref PublicSubnetB
+
+  PrivateSubnetAId:
+    Description: ID of the private application subnet.
+    Value: !Ref PrivateSubnetA
+
+  DatabaseSubnetAId:
+    Description: ID of database subnet A.
+    Value: !Ref DatabaseSubnetA
+
+  DatabaseSubnetBId:
+    Description: ID of database subnet B.
+    Value: !Ref DatabaseSubnetB
