@@ -7,12 +7,56 @@ Description: >
   Stage 3: Security Groups.
   Stage 4: Application Load Balancer (ALB)
   Stage 5: Application tier: EC2 instance
+  Stage 6: Database tier: Amazon RDS PostgreSQL
+
+# ===================================================================================
+
+# PARAMETERS: CONFIGURATION VALUES
+
+# Defines configurable values used when creating the infrastructure.
+
+# ===================================================================================
 
 Parameters:
+  # General environment identifier used to name AWS resources.
   EnvironmentName:
     Type: String
     Default: dev
     Description: Environment name used to identify resources.
+
+  # Name of the PostgreSQL database.
+  DBName:
+    Type: String
+    Default: atudb
+    Description: Name of the PostgreSQL database.
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9]*$"
+    MaxLength: 63
+
+  # Master username for the PostgreSQL database.
+  DBUsername:
+    Type: String
+    Default: dbadmin
+    Description: Master username for the PostgreSQL database.
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9]*$"
+
+  # Master password for the PostgreSQL database.
+  # NoEcho hides the value in normal CloudFormation parameter displays.
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: Master password for the PostgreSQL database.
+    MinLength: 8
+    MaxLength: 41
+
+# ===================================================================================
+
+# RESOURCES: AWS INFRASTRUCTURE
+
+# Defines the resources that CloudFormation will create.
+
+# ===================================================================================
 
 Resources:
   # ===================================================================================
@@ -107,6 +151,40 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${EnvironmentName}-database-subnet-b"
+
+  # DATABASE TIER: RDS SUBNET GROUP
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub "Private database subnets for ${EnvironmentName}"
+      SubnetIds:
+        - !Ref DatabaseSubnetA
+        - !Ref DatabaseSubnetB
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-database-subnet-group"
+
+  # DATABASE TIER: POSTGRESQL RDS INSTANCE
+  DatabaseInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub "${EnvironmentName}-database"
+      Engine: postgres
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      PubliclyAccessible: false
+      MultiAZ: false
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-database"
 
   # ===================================================================================
   # 5. PUBLIC NETWORKING
