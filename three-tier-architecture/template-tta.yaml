@@ -396,3 +396,7 @@ Outputs:
   LoadBalancerDNS:
     Description: DNS name of the public Application Load Balancer.
     Value: !GetAtt ApplicationLoadBalancer.DNSName
+
+  DatabaseEndpoint:
+    Description: Endpoint address of the PostgreSQL database.
+    Value: !GetAtt DatabaseInstance.Endpoint.Address
