@@ -34,12 +34,13 @@ Resources:
   # 2. PUBLIC SUBNETS
   # ===================================================================================
 
-  # Public subnet A, intended for the load balancer.
+  # Public subnet A, intended for the application server.
   PublicSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
       AvailabilityZone: !Select
         - 0
         - !GetAZs ""
