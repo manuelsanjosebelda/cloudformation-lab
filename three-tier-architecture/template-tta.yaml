@@ -109,7 +109,8 @@ Resources:
   # 3. APPLICATION SUBNET
   # ===================================================================================
 
-  # Private subnet intended for the application server.
+  # Private subnet reserved for a future application tier deployment.
+  # The current EC2 application server uses PublicSubnetA to avoid NAT Gateway costs.
   PrivateSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
@@ -347,8 +348,6 @@ Resources:
           #!/bin/bash
           dnf update -y
           dnf install -y httpd
-          systemctl enable httpd
-          systemctl start httpd
           cat > /var/www/html/index.html <<'EOF'
           <!DOCTYPE html>
           <html>
@@ -359,6 +358,9 @@ Resources:
           </body>
           </html>
           EOF
+          systemctl enable httpd
+          systemctl start httpd
+
       SecurityGroupIds:
         - !Ref ApplicationSecurityGroup
       Tags:
