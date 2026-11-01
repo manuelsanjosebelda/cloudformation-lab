@@ -1,0 +1,428 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: >
+  Three-tier architecture for the ATU DevOps CloudFormation Lab.
+  Stage 1: VPC and network subnets.
+  Stage 2: Public routing.
+  Stage 3: Security Groups.
+  Stage 4: Application Load Balancer (ALB)
+  Stage 5: Application tier: EC2 instance
+  Stage 6: Database tier: Amazon RDS PostgreSQL
+
+# ===================================================================================
+
+# PARAMETERS: CONFIGURATION VALUES
+
+# Defines configurable values used when creating the infrastructure.
+
+# ===================================================================================
+
+Parameters:
+  # General environment identifier used to name AWS resources.
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: Environment name used to identify resources.
+
+  # Name of the PostgreSQL database.
+  DBName:
+    Type: String
+    Default: atudb
+    Description: Name of the PostgreSQL database.
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9]*$"
+    MaxLength: 63
+
+  # Master username for the PostgreSQL database.
+  DBUsername:
+    Type: String
+    Default: dbadmin
+    Description: Master username for the PostgreSQL database.
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: "^[a-zA-Z][a-zA-Z0-9]*$"
+
+  # Master password for the PostgreSQL database.
+  # NoEcho hides the value in normal CloudFormation parameter displays.
+  DBPassword:
+    Type: String
+    NoEcho: true
+    Description: Master password for the PostgreSQL database.
+    MinLength: 8
+    MaxLength: 41
+
+# ===================================================================================
+
+# RESOURCES: AWS INFRASTRUCTURE
+
+# Defines the resources that CloudFormation will create.
+
+# ===================================================================================
+
+Resources:
+  # ===================================================================================
+  # 1. NETWORKING: VIRTUAL PRIVATE CLOUD
+  # ===================================================================================
+
+  # Main private network for the three-tier architecture.
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-three-tier-vpc"
+
+  # ===================================================================================
+  # 2. PUBLIC SUBNETS
+  # ===================================================================================
+
+  # Public subnet A, intended for the application server.
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-public-subnet-a"
+
+  # Public subnet B, in a different Availability Zone.
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.5.0/24
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-public-subnet-b"
+
+  # ===================================================================================
+  # 3. APPLICATION SUBNET
+  # ===================================================================================
+
+  # Private subnet reserved for a future application tier deployment.
+  # The current EC2 application server uses PublicSubnetA to avoid NAT Gateway costs.
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-private-app-subnet-a"
+
+  # ===================================================================================
+  # 4. DATABASE SUBNETS
+  # ===================================================================================
+
+  # First private subnet for the database tier.
+  DatabaseSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select
+        - 0
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-database-subnet-a"
+
+  # Second private database subnet in another Availability Zone.
+  DatabaseSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select
+        - 1
+        - !GetAZs ""
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-database-subnet-b"
+
+  # DATABASE TIER: RDS SUBNET GROUP
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub "Private database subnets for ${EnvironmentName}"
+      SubnetIds:
+        - !Ref DatabaseSubnetA
+        - !Ref DatabaseSubnetB
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-database-subnet-group"
+
+  # DATABASE TIER: POSTGRESQL RDS INSTANCE
+  DatabaseInstance:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBInstanceIdentifier: !Sub "${EnvironmentName}-database"
+      Engine: postgres
+      EngineVersion: "16.15"
+      DBInstanceClass: db.t3.micro
+      AllocatedStorage: 20
+      StorageType: gp3
+      StorageEncrypted: true
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      PubliclyAccessible: false
+      MultiAZ: false
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-database"
+
+  # ===================================================================================
+  # 5. PUBLIC NETWORKING
+  # ===================================================================================
+
+  # Internet gateway that provides internet connectivity to public subnets.
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-internet-gateway"
+
+  # Attaches the internet gateway to the VPC.
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # Route table used by the public subnets.
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-public-route-table"
+
+  # Sends internet-bound traffic through the internet gateway.
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  # Associates public subnet A with the public route table.
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  # Associates public subnet B with the public route table.
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  # ===================================================================================
+  # 6. SECURITY GROUPS
+  # ===================================================================================
+
+  # Allows HTTP traffic from the internet to the load balancer.
+  LoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP traffic from the internet to the ALB
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-alb-sg"
+
+  # Allows HTTP traffic to the application only from the load balancer.
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP traffic from the ALB only
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-app-sg"
+
+  # Allows PostgreSQL traffic only from the application tier.
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow PostgreSQL traffic from the application tier only
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref ApplicationSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-db-sg"
+
+  # 4. LOAD BALANCER (ALB)
+  # Routes incoming HTTP traffic to the application tier
+  ApplicationTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${EnvironmentName}-app-targets"
+      VpcId: !Ref VPC
+      Protocol: HTTP
+      Port: 80
+      TargetType: instance
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      Targets:
+        - Id: !Ref ApplicationServer
+          Port: 80
+      Matcher:
+        HttpCode: "200-399"
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-app-target-group"
+
+  # 4. LOAD BALANCER: Application Load Balancer
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${EnvironmentName}-alb"
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      Subnets:
+        - !Ref PublicSubnetA
+        - !Ref PublicSubnetB
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-alb"
+
+  # 4. LOAD BALANCER: HTTP Listener
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ApplicationTargetGroup
+
+  # 5. APPLICATION TIER: EC2 instance
+
+  EC2SSMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  EC2SSMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2SSMRole
+
+  ApplicationServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
+      InstanceType: t3.micro
+      IamInstanceProfile: !Ref EC2SSMInstanceProfile
+      SubnetId: !Ref PublicSubnetA
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          dnf update -y
+          dnf install -y httpd
+          cat > /var/www/html/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head><title>ATU DevOps Lab</title></head>
+          <body>
+            <h1>ATU CloudFormation Lab - Manuel Sanjose — L00205501</h1>
+            <p>Application tier deployed successfully.</p>
+          </body>
+          </html>
+          EOF
+          systemctl enable httpd
+          systemctl start httpd
+
+      SecurityGroupIds:
+        - !Ref ApplicationSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${EnvironmentName}-application-server"
+# ===================================================================================
+# 7. OUTPUTS
+# ===================================================================================
+
+Outputs:
+  VPCId:
+    Description: ID of the virtual private cloud.
+    Value: !Ref VPC
+
+  PublicSubnetAId:
+    Description: ID of public subnet A.
+    Value: !Ref PublicSubnetA
+
+  PublicSubnetBId:
+    Description: ID of public subnet B.
+    Value: !Ref PublicSubnetB
+
+  PrivateSubnetAId:
+    Description: ID of the private application subnet.
+    Value: !Ref PrivateSubnetA
+
+  DatabaseSubnetAId:
+    Description: ID of database subnet A.
+    Value: !Ref DatabaseSubnetA
+
+  DatabaseSubnetBId:
+    Description: ID of database subnet B.
+    Value: !Ref DatabaseSubnetB
+
+  LoadBalancerDNS:
+    Description: DNS name of the public Application Load Balancer.
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+
+  DatabaseEndpoint:
+    Description: Endpoint address of the PostgreSQL database.
+    Value: !GetAtt DatabaseInstance.Endpoint.Address
