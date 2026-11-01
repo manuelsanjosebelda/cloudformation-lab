@@ -338,11 +338,34 @@ Resources:
           TargetGroupArn: !Ref ApplicationTargetGroup
 
   # 5. APPLICATION TIER: EC2 instance
+
+  EC2SSMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  EC2SSMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2SSMRole
+
   ApplicationServer:
     Type: AWS::EC2::Instance
     Properties:
       ImageId: "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
       InstanceType: t3.micro
+      IamInstanceProfile: !Ref EC2SSMInstanceProfile
       SubnetId: !Ref PublicSubnetA
       UserData:
         Fn::Base64: !Sub |
